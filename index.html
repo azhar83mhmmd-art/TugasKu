@@ -8,11 +8,22 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-  <!-- ===== HALAMAN LOGIN ===== -->
-  <div id="loginPage" class="page active">
+  <!-- ===== LAYAR LOADING AWAL ===== -->
+  <div id="loadingScreen" class="loading-screen">
+    <div class="loading-logo">
+      <div class="brand-icon spin-logo"><i class="fas fa-graduation-cap"></i></div>
+      <h2>KelasKu</h2>
+      <p id="loadingMsg">Menghubungkan ke database...</p>
+    </div>
+  </div>
+
+  <!-- ===== HALAMAN LOGIN / DAFTAR ===== -->
+  <div id="loginPage" class="page">
     <div class="login-bg">
       <div class="login-blob blob-1"></div>
       <div class="login-blob blob-2"></div>
@@ -24,9 +35,15 @@
         <h1>KelasKu</h1>
         <p>Platform manajemen tugas & PR kelas digital</p>
       </div>
-      <div class="login-card">
-        <h2>Masuk ke Akun</h2>
-        <p class="login-sub">Silakan masuk untuk melanjutkan</p>
+
+      <!-- TABS -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Masuk</button>
+        <button class="auth-tab" id="tabDaftar" onclick="switchTab('daftar')">Daftar Akun</button>
+      </div>
+
+      <!-- FORM LOGIN -->
+      <div class="login-card" id="formLogin">
         <div id="loginError" class="alert alert-error hidden">
           <i class="fas fa-circle-exclamation"></i> <span></span>
         </div>
@@ -34,86 +51,84 @@
           <label>Username</label>
           <div class="input-wrap">
             <i class="fas fa-user"></i>
-            <input type="text" id="loginUsername" placeholder="Masukkan username" autocomplete="off" />
+            <input type="text" id="loginUsername" placeholder="Masukkan username" autocomplete="off"
+              onkeydown="if(event.key==='Enter') handleLogin()" />
           </div>
         </div>
         <div class="form-group">
           <label>Password</label>
           <div class="input-wrap">
             <i class="fas fa-lock"></i>
-            <input type="password" id="loginPassword" placeholder="Masukkan password" />
-            <button class="toggle-pass" onclick="togglePassword()" type="button"><i class="fas fa-eye"></i></button>
+            <input type="password" id="loginPassword" placeholder="Masukkan password"
+              onkeydown="if(event.key==='Enter') handleLogin()" />
+            <button class="toggle-pass" onclick="togglePass('loginPassword',this)" type="button">
+              <i class="fas fa-eye"></i>
+            </button>
           </div>
         </div>
-        <button class="btn-primary btn-full" onclick="handleLogin()">
+        <button class="btn-primary btn-full" id="btnLogin" onclick="handleLogin()">
           <span>Masuk</span> <i class="fas fa-arrow-right"></i>
         </button>
-        <div class="login-switch">
-          <p>Belum punya akun? <a href="#" onclick="showSignup()">Daftar sekarang</a></p>
-        </div>
+        <p class="auth-switch">Belum punya akun? <a href="#" onclick="switchTab('daftar')">Daftar sekarang</a></p>
       </div>
-    </div>
-  </div>
 
-  <!-- ===== HALAMAN SIGN UP ===== -->
-  <div id="signupPage" class="page">
-    <div class="login-bg">
-      <div class="login-blob blob-1"></div>
-      <div class="login-blob blob-2"></div>
-      <div class="login-blob blob-3"></div>
-    </div>
-    <div class="login-container">
-      <div class="login-brand">
-        <div class="brand-icon"><i class="fas fa-graduation-cap"></i></div>
-        <h1>KelasKu</h1>
-        <p>Buat akun baru untuk mulai menggunakan KelasKu</p>
-      </div>
-      <div class="login-card">
-        <div class="signup-role-banner">
-          <i class="fas fa-user-graduate"></i>
-          <span>Pendaftaran Akun <strong>Siswa</strong></span>
-        </div>
-        <div id="signupError" class="alert alert-error hidden">
+      <!-- FORM DAFTAR -->
+      <div class="login-card hidden" id="formDaftar">
+        <div id="daftarError" class="alert alert-error hidden">
           <i class="fas fa-circle-exclamation"></i> <span></span>
         </div>
-        <div id="signupSuccess" class="alert alert-success hidden">
+        <div id="daftarSuccess" class="alert alert-success hidden">
           <i class="fas fa-check-circle"></i> <span></span>
         </div>
         <div class="form-group">
-          <label>Nama Lengkap</label>
+          <label>Nama Lengkap <span class="req">*</span></label>
           <div class="input-wrap">
             <i class="fas fa-id-card"></i>
-            <input type="text" id="signupNama" placeholder="Masukkan nama lengkap" autocomplete="off" />
+            <input type="text" id="daftarNama" placeholder="Contoh: Budi Santoso" autocomplete="off" />
           </div>
         </div>
         <div class="form-group">
-          <label>Username</label>
+          <label>Username <span class="req">*</span></label>
           <div class="input-wrap">
-            <i class="fas fa-user"></i>
-            <input type="text" id="signupUsername" placeholder="Buat username unik" autocomplete="off" />
+            <i class="fas fa-at"></i>
+            <input type="text" id="daftarUsername" placeholder="Tanpa spasi, min. 4 karakter" autocomplete="off" />
           </div>
         </div>
         <div class="form-group">
-          <label>Password</label>
+          <label>Password <span class="req">*</span></label>
           <div class="input-wrap">
             <i class="fas fa-lock"></i>
-            <input type="password" id="signupPassword" placeholder="Buat password (min. 6 karakter)" />
-            <button class="toggle-pass" onclick="togglePasswordSignup()" type="button"><i class="fas fa-eye"></i></button>
+            <input type="password" id="daftarPassword" placeholder="Min. 6 karakter" />
+            <button class="toggle-pass" onclick="togglePass('daftarPassword',this)" type="button">
+              <i class="fas fa-eye"></i>
+            </button>
           </div>
         </div>
-        <button class="btn-primary btn-full" onclick="handleSignup()">
-          <span>Daftar sebagai Siswa</span> <i class="fas fa-user-plus"></i>
+        <div class="form-group">
+          <label>Daftar sebagai <span class="req">*</span></label>
+          <div class="role-picker">
+            <label class="role-option active" id="roleOptSiswa">
+              <input type="radio" name="daftarRole" value="siswa" checked onchange="updateRolePicker()" />
+              <div class="role-card"><i class="fas fa-user-graduate"></i><span>Siswa</span></div>
+            </label>
+            <label class="role-option" id="roleOptAdmin">
+              <input type="radio" name="daftarRole" value="admin" onchange="updateRolePicker()" />
+              <div class="role-card"><i class="fas fa-chalkboard-teacher"></i><span>Guru / Admin</span></div>
+            </label>
+          </div>
+        </div>
+        <div class="form-group hidden" id="kodeAdminWrap">
+          <label>Kode Admin <span class="req">*</span></label>
+          <div class="input-wrap">
+            <i class="fas fa-shield-halved"></i>
+            <input type="password" id="kodeAdmin" placeholder="Masukkan kode khusus guru" />
+          </div>
+          <small class="form-hint"><i class="fas fa-info-circle"></i> Kode admin: <code>-</code></small>
+        </div>
+        <button class="btn-primary btn-full" id="btnDaftar" onclick="handleDaftar()">
+          <span>Buat Akun</span> <i class="fas fa-user-plus"></i>
         </button>
-        <div class="login-switch">
-          <p>Sudah punya akun? <a href="#" onclick="showLogin()">Masuk di sini</a></p>
-        </div>
-        <div class="guru-info-box">
-          <i class="fas fa-chalkboard-teacher"></i>
-          <div>
-            <strong>Akun Guru</strong>
-            <p>Hubungi admin sekolah untuk mendapatkan username dan password guru.</p>
-          </div>
-        </div>
+        <p class="auth-switch">Sudah punya akun? <a href="#" onclick="switchTab('login')">Masuk di sini</a></p>
       </div>
     </div>
   </div>
@@ -121,7 +136,6 @@
   <!-- ===== APLIKASI UTAMA ===== -->
   <div id="appPage" class="page">
 
-    <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="brand-mini">
@@ -130,53 +144,53 @@
         </div>
         <button class="sidebar-close" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
       </div>
-
       <div class="user-info">
         <div class="user-avatar" id="sidebarAvatar">A</div>
         <div>
           <div class="user-name" id="sidebarName">Nama User</div>
-          <div class="user-role-badge" id="sidebarRole">Admin</div>
+          <div class="user-role-badge" id="sidebarRole">Siswa</div>
         </div>
       </div>
-
       <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" data-section="dashboard" onclick="navigateTo('dashboard', this)">
+        <a href="#" class="nav-item active" data-section="dashboard" onclick="navigateTo('dashboard',this)">
           <i class="fas fa-home"></i> <span>Dashboard</span>
         </a>
-        <a href="#" class="nav-item" data-section="tugas" onclick="navigateTo('tugas', this)">
+        <a href="#" class="nav-item" data-section="tugas" onclick="navigateTo('tugas',this)">
           <i class="fas fa-tasks"></i> <span>Semua Tugas</span>
-          <span class="nav-badge" id="tugasBadge">0</span>
+          <span class="nav-badge" id="tugasBadge" style="display:none">0</span>
         </a>
-        <a href="#" class="nav-item admin-only" data-section="buat" onclick="navigateTo('buat', this)">
+        <a href="#" class="nav-item admin-only" data-section="buat" onclick="navigateTo('buat',this)">
           <i class="fas fa-plus-circle"></i> <span>Buat Tugas</span>
         </a>
-        <a href="#" class="nav-item" data-section="leaderboard" onclick="navigateTo('leaderboard', this)">
+        <a href="#" class="nav-item" data-section="leaderboard" onclick="navigateTo('leaderboard',this)">
           <i class="fas fa-trophy"></i> <span>Leaderboard</span>
         </a>
-        <a href="#" class="nav-item admin-only" data-section="laporan" onclick="navigateTo('laporan', this)">
+        <a href="#" class="nav-item admin-only" data-section="laporan" onclick="navigateTo('laporan',this)">
           <i class="fas fa-chart-bar"></i> <span>Laporan</span>
         </a>
+        <a href="#" class="nav-item admin-only" data-section="kelolaSiswa" onclick="navigateTo('kelolaSiswa',this)">
+          <i class="fas fa-users-gear"></i> <span>Kelola Siswa</span>
+        </a>
       </nav>
-
       <div class="sidebar-footer">
+        <div class="realtime-indicator" id="rtIndicator">
+          <span class="rt-dot" id="rtDot"></span>
+          <span id="rtStatus">Menghubungkan...</span>
+        </div>
         <button class="btn-logout" onclick="handleLogout()">
           <i class="fas fa-sign-out-alt"></i> Keluar
         </button>
       </div>
     </aside>
 
-    <!-- OVERLAY SIDEBAR (MOBILE) -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-    <!-- KONTEN UTAMA -->
     <main class="main-content">
-
-      <!-- TOP BAR -->
       <header class="topbar">
         <button class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
         <div class="topbar-search">
           <i class="fas fa-search"></i>
-          <input type="text" id="searchInput" placeholder="Cari tugas..." onInput="filterTugas()" />
+          <input type="text" id="searchInput" placeholder="Cari tugas..." oninput="filterTugas()" />
         </div>
         <div class="topbar-right">
           <button class="notif-btn" onclick="toggleNotif()" id="notifBtn">
@@ -187,7 +201,6 @@
         </div>
       </header>
 
-      <!-- PANEL NOTIFIKASI -->
       <div class="notif-panel hidden" id="notifPanel">
         <div class="notif-header">
           <span>Notifikasi</span>
@@ -196,51 +209,40 @@
         <div id="notifList" class="notif-list"></div>
       </div>
 
-      <!-- FILTER BAR -->
-      <div class="filter-bar" id="filterBar">
+      <div class="filter-bar" id="filterBar" style="display:none">
         <div class="filter-chips">
-          <button class="chip active" onclick="setFilter('semua', this)">Semua</button>
-          <button class="chip" onclick="setFilter('belum', this)">Belum Dikerjakan</button>
-          <button class="chip" onclick="setFilter('proses', this)">Sedang Dikerjakan</button>
-          <button class="chip" onclick="setFilter('selesai', this)">Sudah Dikumpulkan</button>
+          <button class="chip active" onclick="setFilter('semua',this)">Semua</button>
+          <button class="chip" onclick="setFilter('belum',this)">Belum Dikerjakan</button>
+          <button class="chip" onclick="setFilter('proses',this)">Sedang Dikerjakan</button>
+          <button class="chip" onclick="setFilter('selesai',this)">Sudah Dikumpulkan</button>
         </div>
         <select id="filterMapel" onchange="filterTugas()" class="select-filter">
           <option value="">Semua Mapel</option>
         </select>
       </div>
 
-      <!-- ===== SECTION: DASHBOARD ===== -->
+      <!-- DASHBOARD -->
       <section id="section-dashboard" class="section active">
         <div class="section-header">
           <h2 id="dashGreeting">Selamat Datang!</h2>
           <p id="dashSub">Ringkasan aktivitas hari ini</p>
         </div>
-
-        <!-- Kartu Statistik -->
         <div class="stats-grid" id="statsGrid"></div>
-
-        <!-- Progress Bar (siswa) -->
         <div id="progressSection" class="card progress-card hidden">
           <h3><i class="fas fa-chart-line"></i> Progress Tugas Kamu</h3>
           <div class="progress-wrap">
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
-            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
             <span id="progressText">0%</span>
           </div>
           <p id="progressDesc"></p>
         </div>
-
-        <!-- Tugas Terbaru -->
         <div class="card">
           <div class="card-header-row">
             <h3><i class="fas fa-fire"></i> Tugas Mendekati Deadline</h3>
-            <button class="btn-link" onclick="navigateTo('tugas', null)">Lihat semua →</button>
+            <button class="btn-link" onclick="navigateTo('tugas',null)">Lihat semua →</button>
           </div>
           <div id="urgentTugas" class="task-list-mini"></div>
         </div>
-
-        <!-- Admin: Tabel pengumpulan -->
         <div class="card admin-only hidden" id="adminSubmitCard">
           <div class="card-header-row">
             <h3><i class="fas fa-users"></i> Status Pengumpulan Siswa</h3>
@@ -249,25 +251,16 @@
         </div>
       </section>
 
-      <!-- ===== SECTION: SEMUA TUGAS ===== -->
+      <!-- SEMUA TUGAS -->
       <section id="section-tugas" class="section">
-        <div class="section-header">
-          <h2>Semua Tugas</h2>
-          <p>Daftar tugas yang tersedia</p>
-        </div>
+        <div class="section-header"><h2>Semua Tugas</h2><p>Daftar tugas yang tersedia</p></div>
         <div id="tugasList" class="tasks-grid"></div>
-        <div id="tugasEmpty" class="empty-state hidden">
-          <i class="fas fa-inbox"></i>
-          <p>Tidak ada tugas yang ditemukan</p>
-        </div>
+        <div id="tugasEmpty" class="empty-state hidden"><i class="fas fa-inbox"></i><p>Tidak ada tugas ditemukan</p></div>
       </section>
 
-      <!-- ===== SECTION: BUAT TUGAS (ADMIN) ===== -->
+      <!-- BUAT TUGAS (ADMIN) -->
       <section id="section-buat" class="section">
-        <div class="section-header">
-          <h2>Buat Tugas Baru</h2>
-          <p>Tambahkan tugas untuk siswa</p>
-        </div>
+        <div class="section-header"><h2>Buat Tugas Baru</h2><p>Tambahkan tugas untuk siswa</p></div>
         <div class="card form-card">
           <div class="form-grid">
             <div class="form-group col-2">
@@ -278,16 +271,11 @@
               <label>Mata Pelajaran <span class="req">*</span></label>
               <select id="formMapel">
                 <option value="">Pilih mata pelajaran</option>
-                <option>Matematika</option>
-                <option>Bahasa Indonesia</option>
-                <option>IPA</option>
-                <option>IPS</option>
-                <option>Bahasa Inggris</option>
-                <option>PKN</option>
-                <option>Agama</option>
-                <option>Seni Budaya</option>
-                <option>Penjaskes</option>
-                <option>TIK</option>
+                <option>Matematika</option><option>Bahasa Indonesia</option>
+                <option>IPA</option><option>IPS</option>
+                <option>Bahasa Inggris</option><option>PKN</option>
+                <option>Agama</option><option>Seni Budaya</option>
+                <option>Penjaskes</option><option>TIK</option>
               </select>
             </div>
             <div class="form-group">
@@ -300,10 +288,7 @@
             </div>
             <div class="form-group">
               <label>Jenis Tugas</label>
-              <select id="formJenis">
-                <option value="individu">Individu</option>
-                <option value="kelompok">Kelompok</option>
-              </select>
+              <select id="formJenis"><option value="individu">Individu</option><option value="kelompok">Kelompok</option></select>
             </div>
             <div class="form-group">
               <label>Poin Tugas</label>
@@ -314,84 +299,50 @@
           <div id="formSuccess" class="alert alert-success hidden"><i class="fas fa-check-circle"></i> <span></span></div>
           <div class="form-actions">
             <button class="btn-secondary" onclick="resetForm()"><i class="fas fa-undo"></i> Reset</button>
-            <button class="btn-primary" onclick="buatTugas()"><i class="fas fa-save"></i> Simpan Tugas</button>
+            <button class="btn-primary" id="btnBuatTugas" onclick="buatTugas()"><i class="fas fa-save"></i> Simpan Tugas</button>
           </div>
         </div>
       </section>
 
-      <!-- ===== SECTION: LEADERBOARD ===== -->
+      <!-- LEADERBOARD -->
       <section id="section-leaderboard" class="section">
-        <div class="section-header">
-          <h2><i class="fas fa-trophy"></i> Leaderboard</h2>
-          <p>Siswa paling rajin mengumpulkan tugas</p>
-        </div>
+        <div class="section-header"><h2><i class="fas fa-trophy"></i> Leaderboard</h2><p>Siswa paling rajin mengumpulkan tugas</p></div>
         <div id="leaderboardList" class="leaderboard-list"></div>
       </section>
 
-      <!-- ===== SECTION: LAPORAN (ADMIN) ===== -->
+      <!-- LAPORAN (ADMIN) -->
       <section id="section-laporan" class="section">
-        <div class="section-header">
-          <h2><i class="fas fa-chart-bar"></i> Laporan & Statistik</h2>
-          <p>Pantau aktivitas pengumpulan tugas siswa</p>
-        </div>
+        <div class="section-header"><h2><i class="fas fa-chart-bar"></i> Laporan & Statistik</h2><p>Pantau aktivitas pengumpulan siswa</p></div>
         <div id="laporanContent"></div>
+      </section>
+
+      <!-- KELOLA SISWA (ADMIN) -->
+      <section id="section-kelolaSiswa" class="section">
+        <div class="section-header"><h2><i class="fas fa-users-gear"></i> Kelola Siswa</h2><p>Manajemen akun siswa yang terdaftar</p></div>
+        <div id="kelolaSiswaContent"></div>
       </section>
 
     </main>
   </div>
 
-  <!-- ===== MODAL DETAIL TUGAS ===== -->
+  <!-- MODAL DETAIL TUGAS -->
   <div class="modal-overlay hidden" id="modalOverlay">
-    <div class="modal" id="modalDetail">
-      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    <div class="modal"><button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
       <div id="modalContent"></div>
     </div>
   </div>
 
-  <!-- ===== AI CHATBOT ===== -->
-  <div class="chatbot-wrap" id="chatbotWrap">
-    <div class="chatbot-box hidden" id="chatbotBox">
-      <div class="chatbot-header">
-        <div class="chatbot-avatar"><i class="fas fa-robot"></i></div>
-        <div>
-          <div class="chatbot-name">Asisten KelasKu</div>
-          <div class="chatbot-status">● Online</div>
-        </div>
-        <button onclick="toggleChat()" class="chatbot-close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="chatbot-messages" id="chatMessages">
-        <div class="chat-msg bot">
-          <div class="chat-bubble">Halo! Saya asisten KelasKu 🎓<br>Ada yang bisa saya bantu?<br><br>
-          Coba tanya:<br>
-          • "Tugas apa hari ini?"<br>
-          • "Berapa tugas yang belum selesai?"<br>
-          • "Siapa yang belum kumpul?"
-          </div>
-        </div>
-      </div>
-      <div class="chatbot-input-wrap">
-        <input type="text" id="chatInput" placeholder="Ketik pertanyaan..." onkeydown="if(event.key==='Enter') sendChat()" />
-        <button onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
-      </div>
-    </div>
-    <button class="chatbot-toggle" onclick="toggleChat()" id="chatToggle">
-      <i class="fas fa-robot"></i>
-      <span class="chatbot-label">AI</span>
-    </button>
-  </div>
-
-  <!-- ===== MODAL KICK SISWA ===== -->
+  <!-- MODAL KONFIRMASI HAPUS SISWA -->
   <div class="modal-overlay hidden" id="kickModal">
     <div class="modal kick-modal">
       <div class="kick-modal-icon"><i class="fas fa-user-times"></i></div>
       <h3>Hapus Siswa dari Kelas?</h3>
       <p>Kamu akan menghapus akun:</p>
       <div class="kick-target-info">
-        <strong id="kickNama"></strong>
-        <span id="kickUsername"></span>
+        <strong id="kickNama"></strong><span id="kickUsernameSpan"></span>
       </div>
-      <p class="kick-warning">Semua data pengumpulan tugas siswa ini akan ikut terhapus dan tidak bisa dikembalikan.</p>
-      <input type="hidden" id="kickTargetUsername" />
+      <p class="kick-warning">Semua data pengumpulan tugas siswa ini akan ikut terhapus.</p>
+      <input type="hidden" id="kickTargetId" />
       <div class="kick-modal-actions">
         <button class="btn-secondary" onclick="tutupKickModal()"><i class="fas fa-times"></i> Batal</button>
         <button class="btn-danger" onclick="eksekusiKick()"><i class="fas fa-user-times"></i> Ya, Hapus</button>
@@ -399,11 +350,28 @@
     </div>
   </div>
 
-  <!-- ===== TOAST NOTIFIKASI ===== -->
-  <div id="toastContainer" class="toast-container"></div>
+  <!-- AI CHATBOT -->
+  <div class="chatbot-wrap">
+    <div class="chatbot-box hidden" id="chatbotBox">
+      <div class="chatbot-header">
+        <div class="chatbot-avatar"><i class="fas fa-robot"></i></div>
+        <div><div class="chatbot-name">Asisten KelasKu</div><div class="chatbot-status">● Online</div></div>
+        <button onclick="toggleChat()" class="chatbot-close"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="chatbot-messages" id="chatMessages">
+        <div class="chat-msg bot"><div class="chat-bubble">Halo! Saya asisten KelasKu 🎓<br>Coba tanya:<br>• "Tugas apa hari ini?"<br>• "Berapa tugas belum selesai?"<br>• "Siapa yang belum kumpul?"</div></div>
+      </div>
+      <div class="chatbot-input-wrap">
+        <input type="text" id="chatInput" placeholder="Ketik pertanyaan..." onkeydown="if(event.key==='Enter') sendChat()" />
+        <button onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>
+    <button class="chatbot-toggle" onclick="toggleChat()">
+      <i class="fas fa-robot"></i><span class="chatbot-label">AI</span>
+    </button>
+  </div>
 
-  <!-- Socket.io client (disajikan otomatis oleh server) -->
-  <script src="/socket.io/socket.io.js"></script>
+  <div id="toastContainer" class="toast-container"></div>
   <script src="app.js"></script>
 </body>
 </html>

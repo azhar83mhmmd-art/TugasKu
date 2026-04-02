@@ -1549,3 +1549,131 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 20px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+
+/* ===== TAMBAHAN STYLE VERCEL/SUPABASE ===== */
+
+/* Loading Screen */
+.loading-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+.loading-logo { text-align: center; color: white; }
+.loading-logo h2 { font-size: 28px; font-weight: 800; margin: 16px 0 8px; }
+.loading-logo p { font-size: 14px; opacity: 0.7; }
+.spin-logo {
+  width: 72px; height: 72px; font-size: 32px; margin: 0 auto;
+  background: linear-gradient(135deg, #6366f1, #0ea5e9);
+  border-radius: 20px; display: flex; align-items: center; justify-content: center;
+  animation: spinBounce 1.5s ease-in-out infinite;
+}
+@keyframes spinBounce {
+  0%,100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(20deg) scale(1.1); }
+}
+.loading-screen.hidden { display: none; }
+
+/* Auth Tabs */
+.auth-tabs {
+  display: flex; background: rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 4px; margin-bottom: 16px; gap: 4px;
+}
+.auth-tab {
+  flex: 1; padding: 10px; border: none; border-radius: 9px;
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  cursor: pointer; background: transparent; color: rgba(255,255,255,0.6);
+  transition: var(--transition);
+}
+.auth-tab.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+
+/* Role Picker */
+.role-picker { display: flex; gap: 12px; }
+.role-option { flex: 1; cursor: pointer; }
+.role-option input { display: none; }
+.role-card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 16px 10px;
+  border: 2px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600; color: var(--text-light);
+  background: var(--bg); transition: var(--transition); text-align: center;
+}
+.role-card i { font-size: 22px; }
+.role-option.active .role-card { border-color: var(--primary); background: #eef2ff; color: var(--primary); }
+
+.form-hint { display: block; margin-top: 6px; font-size: 12px; color: var(--text-light); }
+.form-hint code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--primary); }
+
+.auth-switch { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-light); }
+.auth-switch a { color: var(--primary); text-decoration: none; font-weight: 600; }
+
+/* Realtime indicator */
+.realtime-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; margin-bottom: 12px;
+  background: rgba(255,255,255,0.05); border-radius: 8px;
+  font-size: 12px; color: var(--text-sidebar-light);
+}
+.rt-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #94a3b8; flex-shrink: 0;
+  transition: background 0.3s;
+}
+.rt-dot.connected { background: var(--success); animation: rtPulse 2s ease-in-out infinite; }
+.rt-dot.error { background: var(--danger); }
+@keyframes rtPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+/* Kick modal */
+.kick-modal { text-align: center; max-width: 380px; }
+.kick-modal-icon { font-size: 48px; color: var(--danger); margin-bottom: 16px; }
+.kick-modal h3 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+.kick-modal p { color: var(--text-light); font-size: 14px; margin-bottom: 12px; }
+.kick-target-info {
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;
+  padding: 12px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 4px;
+}
+.kick-target-info strong { font-size: 16px; }
+.kick-target-info span { font-size: 13px; color: var(--text-light); }
+.kick-warning { color: var(--danger) !important; font-size: 13px !important; font-weight: 500; }
+.kick-modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+
+/* Kelola siswa table */
+.siswa-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.siswa-table th { text-align: left; padding: 14px 16px; background: var(--bg); font-weight: 600; color: var(--text-light); border-bottom: 1px solid var(--border); }
+.siswa-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.siswa-table tr:last-child td { border-bottom: none; }
+.siswa-table tr:hover td { background: #f8faff; }
+
+.btn-kick {
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+  color: var(--danger); padding: 6px 12px; border-radius: 8px;
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: var(--transition);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.btn-kick:hover { background: var(--danger); color: white; }
+
+/* Setup Supabase page */
+.setup-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #1e1b4b, #4f46e5);
+  padding: 20px;
+}
+.setup-card {
+  background: white; border-radius: 24px; padding: 36px;
+  max-width: 500px; width: 100%; box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+}
+.setup-card h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.setup-card p { color: var(--text-light); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+.setup-steps { counter-reset: step; }
+.setup-step { display: flex; gap: 14px; margin-bottom: 20px; align-items: flex-start; }
+.setup-step-num {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary); color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; flex-shrink: 0;
+}
+.setup-step-text { flex: 1; }
+.setup-step-text strong { display: block; font-size: 14px; margin-bottom: 4px; }
+.setup-step-text p { font-size: 13px; color: var(--text-light); margin: 0; }
+.setup-step-text code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
