@@ -16,7 +16,7 @@ const io     = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-const PORT    = process.env.PORT || 3200;
+const PORT    = process.env.PORT || 3300;
 const DB_FILE = path.join(__dirname, 'db.json');
 
 // ===== AKUN GURU TETAP =====
