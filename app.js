@@ -2,7 +2,7 @@
    KelasKu — Manajemen Tugas Kelas
    JavaScript Utama — Logika Aplikasi
    =================================================== */
-
+const socket = io(); // Inisialisasi koneksi real-time
 // ===== STATE APLIKASI =====
 let currentUser = null;
 let tugas = [];
@@ -88,14 +88,33 @@ function getSiswaList() {
   return getSiswaFromStorage();
 }
 
-// ===== STORAGE =====
+// ===== STORAGE =====// Ganti fungsi saveData yang lama
 function saveData() {
-  localStorage.setItem('kelaskuTugas', JSON.stringify(tugas));
-  localStorage.setItem('kelaskuPengumpulan', JSON.stringify(pengumpulan));
-  localStorage.setItem('kelaskuNotif', JSON.stringify(notifikasi));
-  // Broadcast ke tab/pengguna lain untuk real-time sync
-  localStorage.setItem('kelaskuSync', Date.now().toString());
+    // Sekarang kita tidak lagi menyimpan ke localStorage secara manual untuk data publik
+    // Tapi mengirimkan perintah ke server
 }
+
+// Tambahkan listener untuk menerima data dari server
+socket.on('initData', (data) => {
+    tugas = data.tasks;
+    pengumpulan = data.submissions;
+    renderDashboard();
+    renderTugasList();
+});
+
+socket.on('taskUpdated', (updatedTasks) => {
+    tugas = updatedTasks;
+    renderDashboard();
+    renderTugasList();
+    showToast('Ada tugas baru/pembaruan!', 'info');
+});
+
+socket.on('submissionUpdated', (updatedSubmissions) => {
+    pengumpulan = updatedSubmissions;
+    renderDashboard();
+    if (document.getElementById('section-leaderboard').classList.contains('active')) renderLeaderboard();
+});
+
 
 function loadData() {
   const savedTugas = localStorage.getItem('kelaskuTugas');
@@ -1153,5 +1172,13 @@ window.addEventListener('storage', (e) => {
     if (document.getElementById('section-leaderboard').classList.contains('active')) renderLeaderboard();
     if (document.getElementById('section-laporan').classList.contains('active')) renderLaporan();
     showToast('Data diperbarui secara real-time 🔄', 'info');
+    // Di dalam fungsi buatTugas()
+// ... setelah membuat objek newTugas
+socket.emit('createTask', newTugas); // Kirim ke server
+resetForm();
+
+// Di dalam fungsi kumpulkanTugas()
+// ... setelah membuat objek submission
+socket.emit('submitTask', { tugasId, siswaId: currentUser.username, status: 'selesai', waktu: new Date().toISOString(), catatan });
   }
 });
