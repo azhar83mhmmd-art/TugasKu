@@ -1,6 +1,27 @@
-# KelasKu — Setup di Termux
+# KelasKu — Vercel Edition
 
-Platform manajemen tugas kelas digital dengan server real-time menggunakan **Node.js + Socket.io**.
+Platform manajemen tugas & PR kelas digital — **100% frontend, siap deploy ke Vercel**.
+
+## ⚡ Cara Deploy ke Vercel
+
+### Metode 1: Drag & Drop (Paling Mudah)
+1. Buka [vercel.com](https://vercel.com) dan login
+2. Klik tombol **"Add New Project"**
+3. Pilih **"Deploy Without Git"** atau tab **"Import"**
+4. **Drag & drop folder ini** ke halaman Vercel
+5. Klik **Deploy** — selesai! ✅
+
+### Metode 2: Via GitHub
+1. Upload folder ini ke repository GitHub
+2. Di Vercel, klik **"Add New Project"** → Import dari GitHub
+3. Pilih repo → klik **Deploy**
+
+### Metode 3: Via Vercel CLI
+```bash
+npm install -g vercel
+cd folder-ini
+vercel
+```
 
 ---
 
@@ -8,117 +29,57 @@ Platform manajemen tugas kelas digital dengan server real-time menggunakan **Nod
 
 ```
 kelasku/
-├── server.js       ← Server utama (Express + Socket.io)
-├── app.js          ← Logic frontend (client)
-├── index.html      ← Halaman utama
-├── style.css       ← Tampilan
-├── package.json    ← Daftar dependensi
-├── db.json         ← Database (dibuat otomatis)
-└── README.md       ← Panduan ini
+├── index.html    ← Halaman utama (satu file HTML)
+├── style.css     ← Semua styling
+├── app.js        ← Semua logika aplikasi
+├── vercel.json   ← Konfigurasi Vercel
+└── README.md     ← File ini
 ```
+
+> ⚠️ Tidak ada `server.js` atau `package.json` — tidak dibutuhkan!
 
 ---
 
-## 🔧 Instalasi di Termux
+## 🔧 Arsitektur
 
-### 1. Install Node.js
-```bash
-pkg update && pkg upgrade
-pkg install nodejs
-```
-
-### 2. Buat folder & masuk ke folder
-```bash
-mkdir kelasku
-cd kelasku
-```
-
-### 3. Salin semua file ke folder ini
-Salin `server.js`, `app.js`, `index.html`, `style.css`, `package.json` ke folder `kelasku/`.
-
-### 4. Install dependensi
-```bash
-npm install
-```
-
-### 5. Jalankan server
-```bash
-node server.js
-```
+| Fitur | Teknologi |
+|---|---|
+| Penyimpanan data | `localStorage` (browser) |
+| Real-time antar tab | `BroadcastChannel API` + polling fallback |
+| Backend | ❌ Tidak ada (pure frontend) |
+| Database | ❌ Tidak ada |
+| Framework | ❌ Tidak ada (vanilla JS) |
 
 ---
 
-## 🌐 Akses Aplikasi
+## ⚠️ Catatan Penting
 
-Setelah server berjalan, akan tampil alamat seperti ini:
-
-```
-╔═══════════════════════════════════════╗
-║        KelasKu Server Running         ║
-║   http://localhost:3000               ║
-║                                       ║
-║  Untuk akses dari HP lain di WiFi:    ║
-║  http://192.168.1.5:3000              ║
-╚═══════════════════════════════════════╝
-```
-
-- **HP yang menjalankan Termux** → buka `http://localhost:3000`
-- **HP lain (siswa/guru)** → buka `http://192.168.1.5:3000` (IP sesuai yang tampil)
-- Semua HP harus terhubung ke **WiFi yang sama**
+- **Data disimpan di browser** (localStorage) — data berbeda di tiap browser/device
+- **Real-time** hanya berfungsi antar **tab dalam browser yang sama**
+- Jika ingin data tersinkron antar perangkat/user berbeda, dibutuhkan backend (tidak kompatibel Vercel)
 
 ---
 
-## 🔑 Akun
+## 🔐 Akun & Login
 
-### Guru (sudah tersedia)
-| Username | Password |
-|----------|----------|
-| `guru`   | `guru123` |
-
-### Siswa
-Daftar sendiri melalui halaman **Sign Up** di aplikasi.
+- Semua akun dibuat sendiri via halaman **Daftar**
+- Untuk akun **Guru/Admin**: masukkan kode `GURU2024`
+- Tidak ada akun bawaan/demo
 
 ---
 
-## ⚡ Fitur Real-time
+## 🚀 Fitur Lengkap
 
-- Guru buat tugas → **langsung muncul** di semua siswa yang sedang login
-- Siswa kumpulkan tugas → **langsung update** di dashboard guru
-- Guru kick siswa → **langsung logout** dari HP siswa tersebut
-- Siswa baru daftar → **langsung muncul** di leaderboard
-
----
-
-## 🔄 Menjalankan Ulang Server
-
-Jika Termux ditutup, jalankan ulang:
-```bash
-cd kelasku
-node server.js
-```
-
-Agar server tetap berjalan di background Termux:
-```bash
-# Install tmux
-pkg install tmux
-
-# Buat sesi baru
-tmux new -s kelasku
-
-# Jalankan server
-node server.js
-
-# Keluar dari tmux tanpa matikan server: tekan Ctrl+B lalu D
-# Kembali ke sesi: tmux attach -t kelasku
-```
-
----
-
-## 🗃️ Database
-
-Data disimpan di file `db.json` secara otomatis.
-Untuk **reset semua data**, hapus file `db.json` dan restart server:
-```bash
-rm db.json
-node server.js
-```
+- ✅ Login & signup (siswa + guru)
+- ✅ Manajemen tugas (buat, hapus, lihat detail)
+- ✅ Pengumpulan tugas dengan upload file
+- ✅ Countdown & status deadline (merah/kuning/hijau)
+- ✅ Dashboard statistik
+- ✅ Leaderboard & sistem poin
+- ✅ Laporan pengumpulan (admin)
+- ✅ Kick/hapus siswa (admin)
+- ✅ AI Chatbot asisten (bahasa Indonesia)
+- ✅ Notifikasi deadline
+- ✅ Filter & pencarian tugas
+- ✅ Real-time sync antar tab
+- ✅ Responsif mobile & desktop

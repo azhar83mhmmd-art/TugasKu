@@ -1,7 +1,12 @@
 /* ===================================================
-   KelasKu — Vercel Edition
+   KelasKu — Vercel Edition v2
    Backend: Supabase (Database + Auth + Realtime)
-   Tidak perlu server Node.js sama sekali!
+   AI: Claude API (claude-sonnet-4-20250514)
+   Fitur baru:
+   - Tetap login (localStorage)
+   - Notifikasi browser push
+   - Pengumuman (buat & tampilkan)
+   - AI Assistant powered by Claude
    =================================================== */
 
 // =========================================================
@@ -9,25 +14,37 @@
 //     Dapatkan dari: https://supabase.com/dashboard
 //     Project Settings → API → Project URL & anon key
 // =========================================================
-const SUPABASE_URL  = 'https://azlahseyonqyqmwpegwc.supabase.co';
-const SUPABASE_ANON = 'sb_publishable__HNQuyjPkTQJUHjarrdq6w_Pg61RxCH';
+const SUPABASE_URL  = 'https://octoukmbqaocxmcyreyy.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_2V8Dq-s6uWgNyCqASXGMSg_ayOE1gA8';
+
+// =========================================================
+// ⚠️  KONFIGURASI CLAUDE AI — ISI API KEY KAMU
+//     Dapatkan dari: https://console.anthropic.com
+//     PENTING: Jangan share API key ini secara publik!
+//     Untuk produksi, gunakan backend/proxy server.
+// =========================================================
+const CLAUDE_API_KEY = 'GANTI_DENGAN_CLAUDE_API_KEY_KAMU';
 // =========================================================
 
 const KODE_ADMIN = 'KENZO';
+const STORAGE_KEY = 'kku_user_v2'; // localStorage key
 
 // ===== STATE =====
-let sb = null;          // supabase client
+let sb = null;
 let currentUser = null;
 let tugas       = [];
 let pengumpulan = [];
 let siswaList   = [];
+let pengumumanList = [];
 let notifikasi  = [];
 let filterStatus = 'semua';
 let realtimeSubs = [];
+let chatHistory = [];  // untuk konteks AI
+let chatTyping = false;
+let newPengumumanCount = 0;
 
 // ===== INIT SUPABASE =====
 function initSupabase() {
-  // Cek apakah sudah dikonfigurasi
   if (SUPABASE_URL.includes('GANTI') || SUPABASE_ANON.includes('GANTI')) {
     showSetupPage();
     return false;
@@ -67,13 +84,14 @@ function showSetupPage() {
           <p>Settings → API → copy <code>Project URL</code> dan <code>anon key</code> ke <code>app.js</code></p>
         </div></div>
         <div class="setup-step"><div class="setup-step-num">5</div><div class="setup-step-text">
+          <strong>Isi Claude API Key</strong>
+          <p>Dapatkan dari <a href="https://console.anthropic.com" target="_blank" style="color:var(--primary)">console.anthropic.com</a> → isi <code>CLAUDE_API_KEY</code></p>
+        </div></div>
+        <div class="setup-step"><div class="setup-step-num">6</div><div class="setup-step-text">
           <strong>Deploy ke Vercel</strong>
           <p>Upload folder ini ke GitHub → connect ke Vercel → Deploy!</p>
         </div></div>
       </div>
-      <p style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:13px;margin-top:8px;color:#065f46">
-        ✅ File <code>schema.sql</code> sudah tersedia di folder project. Baca juga <code>PANDUAN_HOSTING.md</code> untuk langkah lengkap.
-      </p>
     </div>
   </div>`;
 }
@@ -127,7 +145,6 @@ function togglePass(id, btn) {
   btn.querySelector('i').className = isPass ? 'fas fa-eye-slash' : 'fas fa-eye';
 }
 
-// ===== LOADING MSG =====
 function setLoadMsg(msg) {
   const el = document.getElementById('loadingMsg');
   if (el) el.textContent = msg;
@@ -137,11 +154,11 @@ function setLoadMsg(msg) {
 async function handleLogin() {
   const username = document.getElementById('loginUsername').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
+  const remember = document.getElementById('rememberMe').checked;
   if (!username || !password) { showErr('loginError','Username dan password wajib diisi!'); return; }
 
   setBtnLoading('btnLogin', true, 'Masuk...');
 
-  // Cari user di tabel users berdasarkan username + password
   const { data, error } = await sb
     .from('users')
     .select('*')
@@ -157,7 +174,11 @@ async function handleLogin() {
   }
 
   currentUser = data;
-  sessionStorage.setItem('kku_session', JSON.stringify(data));
+
+  // Simpan ke localStorage (tetap login) atau sessionStorage
+  const storage = remember ? localStorage : sessionStorage;
+  storage.setItem(STORAGE_KEY, JSON.stringify(data));
+
   document.getElementById('loginError').classList.add('hidden');
   await initApp();
 }
@@ -181,7 +202,6 @@ async function handleDaftar() {
 
   setBtnLoading('btnDaftar', true, 'Mendaftar...');
 
-  // Cek apakah username sudah ada
   const { data: existing } = await sb.from('users').select('id').eq('username', username).maybeSingle();
   if (existing) {
     setBtnLoading('btnDaftar', false);
@@ -189,7 +209,6 @@ async function handleDaftar() {
     return;
   }
 
-  // Insert user baru
   const newUser = { id: makeid(), nama, username, password, role, avatar: avatarChar(nama), dibuat: new Date().toISOString() };
   const { error } = await sb.from('users').insert(newUser);
 
@@ -229,8 +248,12 @@ function setBtnLoading(id, loading, msg = '') {
   btn.disabled = loading;
   if (loading) btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${msg}`;
   else {
-    // Restore original
-    const restore = { btnLogin:'<span>Masuk</span> <i class="fas fa-arrow-right"></i>', btnDaftar:'<span>Buat Akun</span> <i class="fas fa-user-plus"></i>', btnBuatTugas:'<i class="fas fa-save"></i> Simpan Tugas' };
+    const restore = {
+      btnLogin:'<span>Masuk</span> <i class="fas fa-arrow-right"></i>',
+      btnDaftar:'<span>Buat Akun</span> <i class="fas fa-user-plus"></i>',
+      btnBuatTugas:'<i class="fas fa-save"></i> Simpan Tugas',
+      btnBuatPengumuman:'<i class="fas fa-bullhorn"></i> Kirim Pengumuman'
+    };
     btn.innerHTML = restore[id] || msg;
   }
 }
@@ -238,8 +261,10 @@ function setBtnLoading(id, loading, msg = '') {
 // ===== LOGOUT =====
 function handleLogout() {
   currentUser = null;
-  sessionStorage.removeItem('kku_session');
+  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
   unsubscribeRealtime();
+  chatHistory = [];
   document.getElementById('appPage').classList.remove('active');
   document.getElementById('loginPage').classList.add('active');
   document.getElementById('loginUsername').value = '';
@@ -247,22 +272,38 @@ function handleLogout() {
   setRTStatus('disconnected');
 }
 
+// ===== NOTIFIKASI BROWSER =====
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
+function sendBrowserNotif(title, body, icon = '🎓') {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, {
+      body,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">' + icon + '</text></svg>'
+    });
+  } catch(e) {}
+}
+
 // ===== INIT APP =====
 async function initApp() {
   document.getElementById('loadingScreen').classList.remove('hidden');
   setLoadMsg('Memuat data...');
-
   document.getElementById('loginPage').classList.remove('active');
 
-  // Load semua data dari Supabase
   await loadAllData();
+  await requestNotifPermission();
 
   setLoadMsg('Menyiapkan tampilan...');
 
   document.getElementById('appPage').classList.add('active');
   document.getElementById('loadingScreen').classList.add('hidden');
 
-  // Update profil
   document.getElementById('sidebarName').textContent    = currentUser.nama;
   document.getElementById('sidebarAvatar').textContent  = avatarChar(currentUser.nama);
   document.getElementById('topbarAvatar').textContent   = avatarChar(currentUser.nama);
@@ -277,12 +318,12 @@ async function initApp() {
   cekDeadlineNotif();
   updateNotifBadge();
 
-  // Mulai Supabase Realtime
-  subscribeRealtime();
+  // Inisialisasi chat context
+  chatHistory = [];
 
+  subscribeRealtime();
   navigateTo('dashboard', document.querySelector('.nav-item[data-section="dashboard"]'));
 
-  // Auto-refresh countdown setiap menit
   setInterval(() => {
     const active = document.querySelector('.section.active');
     if (active) refreshSection(active.id.replace('section-',''));
@@ -291,14 +332,16 @@ async function initApp() {
 
 // ===== LOAD DATA =====
 async function loadAllData() {
-  const [rTugas, rPengumpulan, rUsers] = await Promise.all([
+  const [rTugas, rPengumpulan, rUsers, rPengumuman] = await Promise.all([
     sb.from('tugas').select('*').order('dibuat', {ascending: false}),
     sb.from('pengumpulan').select('*'),
     sb.from('users').select('id,nama,username,role,avatar,dibuat').eq('role','siswa'),
+    sb.from('pengumuman').select('*').order('dibuat', {ascending: false}),
   ]);
-  tugas        = rTugas.data        || [];
-  pengumpulan  = rPengumpulan.data  || [];
-  siswaList    = rUsers.data        || [];
+  tugas          = rTugas.data        || [];
+  pengumpulan    = rPengumpulan.data  || [];
+  siswaList      = rUsers.data        || [];
+  pengumumanList = rPengumuman.data   || [];
 }
 
 // ===== SUPABASE REALTIME =====
@@ -310,15 +353,33 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tugas' }, async (payload) => {
       await reloadTugas();
       refreshSection(document.querySelector('.section.active')?.id.replace('section-','') || 'dashboard');
-      if (payload.eventType === 'INSERT') showToast('📋 Tugas baru ditambahkan!', 'info');
+      if (payload.eventType === 'INSERT') {
+        const t = payload.new;
+        showToast('📋 Tugas baru: ' + t.judul, 'info');
+        addNotif({icon:'📋', text:`Tugas baru ditambahkan: "${t.judul}"`, time: waktuSekarang()});
+        sendBrowserNotif('📋 Tugas Baru!', t.judul + ' — ' + t.mapel, '📋');
+      }
       if (payload.eventType === 'DELETE') showToast('🗑️ Tugas dihapus.', 'info');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pengumuman' }, async (payload) => {
+      await reloadPengumuman();
+      refreshSection(document.querySelector('.section.active')?.id.replace('section-','') || 'dashboard');
+      if (payload.eventType === 'INSERT') {
+        const p = payload.new;
+        showToast('📢 Pengumuman baru: ' + p.judul, 'info');
+        addNotif({icon: p.penting ? '🚨' : '📢', text:`Pengumuman baru: "${p.judul}"`, time: waktuSekarang()});
+        sendBrowserNotif(p.penting ? '🚨 Pengumuman Penting!' : '📢 Pengumuman Baru', p.judul, p.penting ? '🚨' : '📢');
+        // Update badge pengumuman
+        newPengumumanCount++;
+        updatePengumumanBadge();
+      }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pengumpulan' }, async (payload) => {
       await reloadPengumpulan();
       refreshSection(document.querySelector('.section.active')?.id.replace('section-','') || 'dashboard');
       if (currentUser.role === 'admin' && payload.eventType !== 'UPDATE') {
         showToast('📤 Ada siswa mengumpulkan tugas!', 'info');
-        addNotif({icon:'📤', text:'Ada siswa yang baru mengumpulkan tugas.', time: new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})});
+        addNotif({icon:'📤', text:'Ada siswa yang baru mengumpulkan tugas.', time: waktuSekarang()});
       }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
@@ -352,6 +413,11 @@ async function reloadPengumpulan() {
   pengumpulan = data || [];
 }
 
+async function reloadPengumuman() {
+  const { data } = await sb.from('pengumuman').select('*').order('dibuat', {ascending: false});
+  pengumumanList = data || [];
+}
+
 function setRTStatus(status) {
   const dot  = document.getElementById('rtDot');
   const text = document.getElementById('rtStatus');
@@ -363,12 +429,18 @@ function setRTStatus(status) {
   else { text.textContent = 'Offline'; }
 }
 
+function waktuSekarang() {
+  return new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+}
+
 function refreshSection(sec) {
-  if (sec === 'dashboard')    renderDashboard();
-  if (sec === 'tugas')        renderTugasList();
-  if (sec === 'leaderboard')  renderLeaderboard();
-  if (sec === 'laporan')      renderLaporan();
-  if (sec === 'kelolaSiswa')  renderKelolaSiswa();
+  if (sec === 'dashboard')       renderDashboard();
+  if (sec === 'pengumuman')      renderPengumuman();
+  if (sec === 'buatPengumuman')  {} // no refresh needed
+  if (sec === 'tugas')           renderTugasList();
+  if (sec === 'leaderboard')     renderLeaderboard();
+  if (sec === 'laporan')         renderLaporan();
+  if (sec === 'kelolaSiswa')     renderKelolaSiswa();
 }
 
 // ===== NAVIGASI =====
@@ -379,6 +451,13 @@ function navigateTo(section, el) {
   const target = document.getElementById('section-' + section);
   if (target) target.classList.add('active');
   document.getElementById('filterBar').style.display = section === 'tugas' ? '' : 'none';
+
+  // Reset badge pengumuman saat dibuka
+  if (section === 'pengumuman') {
+    newPengumumanCount = 0;
+    updatePengumumanBadge();
+  }
+
   refreshSection(section);
 }
 
@@ -410,6 +489,23 @@ function renderDashboard() {
     document.getElementById('progressText').textContent = pct + '%';
     document.getElementById('progressDesc').textContent = `${done} dari ${total} tugas telah diselesaikan`;
   } else { progSec.classList.add('hidden'); }
+
+  // Pengumuman terbaru
+  const dashPng = document.getElementById('dashPengumumanList');
+  const recentPng = pengumumanList.slice(0, 3);
+  if (!recentPng.length) {
+    dashPng.innerHTML = '<p style="color:var(--text-light);font-size:13px;text-align:center;padding:16px">Belum ada pengumuman 📢</p>';
+  } else {
+    dashPng.innerHTML = recentPng.map(p => `
+      <div class="pengumuman-mini ${p.penting ? 'penting' : ''}" onclick="navigateTo('pengumuman',document.querySelector('[data-section=pengumuman]'))">
+        <div class="pengumuman-mini-icon">${p.penting ? '🚨' : '📢'}</div>
+        <div class="pengumuman-mini-content">
+          <div class="pengumuman-mini-judul">${p.judul}</div>
+          <div class="pengumuman-mini-time">${formatDate(p.dibuat)} · ${p.oleh_nama}</div>
+        </div>
+        ${p.penting ? '<span class="badge-penting">Penting</span>' : ''}
+      </div>`).join('');
+  }
 
   // Urgent tugas
   const sorted = [...tugas].filter(t => getCountdown(t.deadline).type !== 'expired')
@@ -465,6 +561,7 @@ function renderStats() {
       {icon:'fa-users',color:'green',num:siswaList.length,label:'Jumlah Siswa'},
       {icon:'fa-check-double',color:'purple',num:totalKumpul,label:'Total Pengumpulan'},
       {icon:'fa-calendar-day',color:'yellow',num:todayDl,label:'Deadline Hari Ini'},
+      {icon:'fa-bullhorn',color:'blue',num:pengumumanList.length,label:'Total Pengumuman'},
     ];
   }
   el.innerHTML = stats.map(s => `
@@ -492,6 +589,87 @@ function renderAdminSubmitTable() {
       }).join('')}
       <td><strong style="color:var(--primary)">${hitungPoin(s.id)}</strong></td></tr>`).join('')}
     </tbody></table></div>`;
+}
+
+// ===== PENGUMUMAN =====
+function renderPengumuman() {
+  const listEl  = document.getElementById('pengumumanList');
+  const emptyEl = document.getElementById('pengumumanEmpty');
+  if (!pengumumanList.length) {
+    listEl.innerHTML = '';
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+  emptyEl.classList.add('hidden');
+  listEl.innerHTML = pengumumanList.map(p => `
+    <div class="pengumuman-card ${p.penting ? 'penting' : ''}">
+      <div class="pengumuman-card-header">
+        <div class="pengumuman-icon-wrap">${p.penting ? '🚨' : '📢'}</div>
+        <div class="pengumuman-meta">
+          <div class="pengumuman-judul">${p.judul}</div>
+          <div class="pengumuman-info">${p.oleh_nama} · ${formatDate(p.dibuat)}</div>
+        </div>
+        ${p.penting ? '<span class="badge-penting">⚡ Penting</span>' : ''}
+        ${currentUser.role === 'admin' ? `<button class="btn-icon-danger" onclick="hapusPengumuman('${p.id}')" title="Hapus pengumuman"><i class="fas fa-trash"></i></button>` : ''}
+      </div>
+      <div class="pengumuman-isi">${p.isi.replace(/\n/g,'<br>')}</div>
+    </div>`).join('');
+}
+
+async function buatPengumuman() {
+  const judul   = document.getElementById('pFormJudul').value.trim();
+  const isi     = document.getElementById('pFormIsi').value.trim();
+  const penting = document.getElementById('pFormPenting').checked;
+
+  if (!judul) { showErr('pFormError','Judul pengumuman wajib diisi!'); return; }
+  if (!isi)   { showErr('pFormError','Isi pengumuman wajib diisi!'); return; }
+
+  setBtnLoading('btnBuatPengumuman', true, 'Mengirim...');
+
+  const { error } = await sb.from('pengumuman').insert({
+    id: makeid(),
+    judul,
+    isi,
+    penting,
+    oleh: currentUser.id,
+    oleh_nama: currentUser.nama,
+    dibuat: new Date().toISOString()
+  });
+
+  setBtnLoading('btnBuatPengumuman', false);
+
+  if (error) { showErr('pFormError', 'Gagal: ' + error.message); return; }
+
+  document.getElementById('pFormError').classList.add('hidden');
+  const sucEl = document.getElementById('pFormSuccess');
+  sucEl.querySelector('span').textContent = `Pengumuman "${judul}" berhasil dikirim!`;
+  sucEl.classList.remove('hidden');
+  showToast(`📢 Pengumuman berhasil dikirim!`, 'success');
+  setTimeout(() => { sucEl.classList.add('hidden'); resetPengumumanForm(); }, 2000);
+}
+
+function resetPengumumanForm() {
+  document.getElementById('pFormJudul').value = '';
+  document.getElementById('pFormIsi').value = '';
+  document.getElementById('pFormPenting').checked = false;
+  document.getElementById('pFormError').classList.add('hidden');
+  document.getElementById('pFormSuccess').classList.add('hidden');
+}
+
+async function hapusPengumuman(id) {
+  if (!confirm('Yakin ingin menghapus pengumuman ini?')) return;
+  await sb.from('pengumuman').delete().eq('id', id);
+  await reloadPengumuman();
+  showToast('Pengumuman berhasil dihapus.', 'info');
+  renderPengumuman();
+  renderDashboard();
+}
+
+function updatePengumumanBadge() {
+  const badge = document.getElementById('pengumumanBadge');
+  if (!badge) return;
+  badge.textContent = newPengumumanCount;
+  badge.style.display = newPengumumanCount > 0 ? '' : 'none';
 }
 
 // ===== TUGAS LIST =====
@@ -650,7 +828,7 @@ async function kumpulkanTugas(tugasId) {
   }
   await reloadPengumpulan();
   showToast(`🎉 Tugas "${t.judul}" berhasil dikumpulkan!`, 'success');
-  addNotif({icon:'✅', text:`Tugas "${t.judul}" berhasil dikumpulkan.`, time:new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})});
+  addNotif({icon:'✅', text:`Tugas "${t.judul}" berhasil dikumpulkan.`, time:waktuSekarang()});
   closeModal();
   renderDashboard();
 }
@@ -816,50 +994,186 @@ function showToast(msg, type='info') {
   setTimeout(()=>{ t.style.animation='toastOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); },3500);
 }
 
-// ===== CHATBOT =====
-function toggleChat() { document.getElementById('chatbotBox').classList.toggle('hidden'); }
-function sendChat() {
-  const inp=document.getElementById('chatInput'), msg=inp.value.trim();
-  if(!msg) return; addChatMsg(msg,'user'); inp.value='';
-  setTimeout(()=>addChatMsg(generateAIReply(msg.toLowerCase()),'bot'),600);
+// ===== AI CHATBOT (Claude-powered) =====
+function toggleChat() {
+  const box = document.getElementById('chatbotBox');
+  box.classList.toggle('hidden');
 }
-function addChatMsg(text,role) {
-  const el=document.getElementById('chatMessages');
-  const d=document.createElement('div'); d.className=`chat-msg ${role}`;
-  d.innerHTML=`<div class="chat-bubble">${text}</div>`;
-  el.appendChild(d); el.scrollTop=el.scrollHeight;
+
+async function sendChat() {
+  if (chatTyping) return;
+  const inp = document.getElementById('chatInput');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  addChatMsg(msg, 'user');
+  inp.value = '';
+  chatTyping = true;
+  document.getElementById('chatSendBtn').disabled = true;
+
+  // Tambahkan ke history
+  chatHistory.push({ role: 'user', content: msg });
+
+  // Tampilkan animasi typing
+  const typingId = 'typing-' + Date.now();
+  const el = document.getElementById('chatMessages');
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'chat-msg bot';
+  typingDiv.id = typingId;
+  typingDiv.innerHTML = `<div class="chat-bubble typing-indicator"><span></span><span></span><span></span></div>`;
+  el.appendChild(typingDiv);
+  el.scrollTop = el.scrollHeight;
+
+  try {
+    let reply;
+    if (CLAUDE_API_KEY.includes('GANTI')) {
+      // Fallback ke rule-based jika API key belum diisi
+      await new Promise(r => setTimeout(r, 600));
+      reply = generateLocalReply(msg.toLowerCase());
+    } else {
+      reply = await callClaudeAPI(msg);
+    }
+
+    // Hapus typing
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) typingEl.remove();
+
+    addChatMsg(reply, 'bot');
+    chatHistory.push({ role: 'assistant', content: reply.replace(/<[^>]+>/g, '') });
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+  } catch (err) {
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) typingEl.remove();
+    addChatMsg('Maaf, terjadi kesalahan. Coba lagi ya 😅', 'bot');
+  }
+
+  chatTyping = false;
+  document.getElementById('chatSendBtn').disabled = false;
+  document.getElementById('chatInput').focus();
 }
-function generateAIReply(msg) {
+
+async function callClaudeAPI(userMsg) {
+  // Buat konteks data kelas untuk AI
+  const tugasSummary = tugas.slice(0, 10).map(t => {
+    const cd = getCountdown(t.deadline);
+    const st = currentUser.role === 'siswa' ? getStatusTugas(t.id) : null;
+    return `- ${t.judul} (${t.mapel}) | Deadline: ${formatDate(t.deadline)} | ${cd.text}${st ? ' | Status saya: ' + st : ''}`;
+  }).join('\n');
+
+  const pengumumanSummary = pengumumanList.slice(0, 5).map(p =>
+    `- [${p.penting ? 'PENTING' : 'Info'}] ${p.judul}: ${p.isi.slice(0, 100)}...`
+  ).join('\n');
+
+  const statsSiswa = currentUser.role === 'siswa' ? `
+- Tugas selesai: ${pengumpulan.filter(p=>p.siswa_id===currentUser.id&&p.status==='selesai').length}
+- Tugas belum: ${tugas.filter(t=>getStatusTugas(t.id)==='belum').length}
+- Total poin: ${hitungPoin(currentUser.id)}
+` : `
+- Total siswa: ${siswaList.length}
+- Total tugas: ${tugas.length}
+- Total pengumpulan: ${pengumpulan.filter(p=>p.status==='selesai').length}
+`;
+
+  const systemPrompt = `Kamu adalah Asisten KelasKu yang ramah dan helpful untuk platform manajemen tugas sekolah. Kamu berbicara dalam Bahasa Indonesia yang santai dan menyenangkan.
+
+DATA KELAS SAAT INI:
+Pengguna: ${currentUser.nama} (${currentUser.role === 'admin' ? 'Guru/Admin' : 'Siswa'})
+Tanggal: ${new Date().toLocaleDateString('id-ID', {weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+
+STATISTIK:${statsSiswa}
+
+TUGAS TERBARU:
+${tugasSummary || 'Belum ada tugas'}
+
+PENGUMUMAN TERBARU:
+${pengumumanSummary || 'Belum ada pengumuman'}
+
+PANDUAN:
+- Jawab pertanyaan singkat, jelas, dan ramah
+- Gunakan emoji yang relevan agar lebih menarik
+- Jika ditanya soal tugas/deadline/poin, gunakan data di atas
+- Jika ditanya pertanyaan pelajaran, bantu sebaik mungkin
+- Jangan pernah sebut bahwa kamu Claude atau dibuat Anthropic - kamu adalah "Asisten KelasKu"
+- Jaga percakapan tetap positif dan mendukung semangat belajar`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: systemPrompt,
+      messages: chatHistory.slice(-8) // kirim 8 pesan terakhir untuk konteks
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || 'API error');
+  }
+
+  const data = await response.json();
+  return data.content[0]?.text || 'Maaf, tidak ada respons.';
+}
+
+// Fallback rule-based (jika API key belum diisi)
+function generateLocalReply(msg) {
   if(msg.includes('hari ini')||msg.includes('tugas apa')){const td=tugas.filter(t=>new Date(t.deadline).toDateString()===new Date().toDateString());return td.length?`Deadline hari ini:<br>${td.map(t=>`• ${t.judul}`).join('<br>')}` :'Tidak ada deadline hari ini 😊';}
   if(msg.includes('belum selesai')&&currentUser.role==='siswa'){const b=tugas.filter(t=>getStatusTugas(t.id)==='belum');return b.length?`${b.length} tugas belum dikerjakan:<br>${b.map(t=>`• ${t.judul}`).join('<br>')}` :'Semua tugasmu sudah dikerjakan! 🎉';}
   if(msg.includes('belum kumpul')&&currentUser.role==='admin'){const bl=siswaList.filter(s=>tugas.some(t=>!pengumpulan.find(p=>p.siswa_id===s.id&&p.tugas_id===t.id&&p.status==='selesai')));return bl.length?`Siswa belum kumpul:<br>${bl.map(s=>`• ${s.nama}`).join('<br>')}` :'Semua siswa sudah mengumpulkan! 🎉';}
+  if(msg.includes('pengumuman')){const p=pengumumanList.slice(0,3);return p.length?`Pengumuman terbaru:<br>${p.map(x=>`• ${x.judul}`).join('<br>')}` :'Belum ada pengumuman 📢';}
   if(msg.includes('berapa tugas')) return `Total: <strong>${tugas.length} tugas</strong> 📚`;
   if(msg.includes('poin')&&currentUser.role==='siswa') return `Poinmu: <strong>${hitungPoin(currentUser.id)} poin</strong> ⭐`;
   if(msg.includes('deadline')){const s=[...tugas].filter(t=>getCountdown(t.deadline).type!=='expired').sort((a,b)=>new Date(a.deadline)-new Date(b.deadline)).slice(0,3);return s.length?`Deadline terdekat:<br>${s.map(t=>`• ${t.judul} — ${getCountdown(t.deadline).text}`).join('<br>')}` :'Tidak ada tugas aktif.';}
-  if(msg.includes('halo')||msg.includes('hai')) return `Halo, ${currentUser.nama.split(' ')[0]}! 👋`;
-  return 'Maaf belum bisa menjawab itu 😅<br>Coba: "Tugas hari ini?", "Deadline terdekat?", "Berapa tugas?"';
+  if(msg.includes('halo')||msg.includes('hai')) return `Halo, ${currentUser.nama.split(' ')[0]}! 👋 Ada yang bisa dibantu?`;
+  return `Maaf, saya belum bisa menjawab itu 😅<br><small style="color:#888">💡 Tip: Isi <code>CLAUDE_API_KEY</code> di app.js untuk AI yang lebih pintar!</small><br><br>Coba tanya: "Tugas hari ini?", "Deadline terdekat?", atau "Berapa poin saya?"`;
+}
+
+function addChatMsg(text, role) {
+  const el = document.getElementById('chatMessages');
+  const d = document.createElement('div');
+  d.className = `chat-msg ${role}`;
+  d.innerHTML = `<div class="chat-bubble">${text}</div>`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
 }
 
 // ===== SIDEBAR =====
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarOverlay').classList.toggle('show'); }
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
 
 // ===== INIT =====
 window.addEventListener('DOMContentLoaded', async () => {
-  if (!initSupabase()) return; // Akan tampilkan setup page
+  if (!initSupabase()) return;
 
   setLoadMsg('Memeriksa sesi...');
 
-  const savedSession = sessionStorage.getItem('kku_session');
+  // Cek localStorage dulu (remember me), lalu sessionStorage
+  let savedSession = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
+
   if (savedSession) {
-    const u = JSON.parse(savedSession);
-    // Verifikasi user masih ada di database
-    const { data } = await sb.from('users').select('*').eq('id', u.id).maybeSingle();
-    if (data) {
-      currentUser = data;
-      await initApp();
-      return;
-    }
-    sessionStorage.removeItem('kku_session');
+    try {
+      const u = JSON.parse(savedSession);
+      // Verifikasi user masih ada di database
+      const { data } = await sb.from('users').select('*').eq('id', u.id).maybeSingle();
+      if (data) {
+        currentUser = data;
+        // Perbarui data tersimpan
+        const inLocal = !!localStorage.getItem(STORAGE_KEY);
+        (inLocal ? localStorage : sessionStorage).setItem(STORAGE_KEY, JSON.stringify(data));
+        await initApp();
+        return;
+      }
+    } catch(e) {}
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   }
 
   document.getElementById('loadingScreen').classList.add('hidden');
